@@ -49,6 +49,17 @@ export function exportToExcel(data: any[], filename: string, sheetName = 'Data')
   XLSX.writeFile(workbook, `${filename}.xlsx`);
 }
 
+export function exportMultiSheetExcel(sheets: { name: string; data: any[] }[], filename: string) {
+  const workbook = XLSX.utils.book_new();
+  sheets.forEach((s) => {
+    if (s.data && s.data.length > 0) {
+      const ws = XLSX.utils.json_to_sheet(s.data);
+      XLSX.utils.book_append_sheet(workbook, ws, s.name.slice(0, 31));
+    }
+  });
+  XLSX.writeFile(workbook, `${filename}.xlsx`);
+}
+
 export function exportPatientsPDF(patients: Patient[]) {
   const doc = new jsPDF();
   doc.setFontSize(16);

@@ -46,7 +46,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   const { currentUser } = useAuth();
   const { patients, therapySessions, sales, expenses, invoices, payments, herbalProducts } = useClinic();
 
-  const [timeFilter, setTimeFilter] = useState<'7d' | '30d' | 'this_month' | '3m' | '6m' | 'this_year'>('30d');
+  const [timeFilter, setTimeFilter] = useState<'today' | '7d' | '30d' | 'this_month' | 'this_year' | 'all'>('30d');
 
   // Greeting based on current hour
   const greeting = useMemo(() => {
@@ -57,16 +57,62 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
     return 'Selamat Malam';
   }, []);
 
+  // Filter Date Range for Dashboard KPIs & Chart
+  const filterRange = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    if (timeFilter === 'today') {
+      return { start: todayStr, end: todayStr, label: 'Hari Ini' };
+    }
+    if (timeFilter === '7d') {
+      const d = new Date();
+      d.setDate(now.getDate() - 6);
+      return { start: d.toISOString().slice(0, 10), end: todayStr, label: '7 Hari Terakhir' };
+    }
+    if (timeFilter === '30d') {
+      const d = new Date();
+      d.setDate(now.getDate() - 29);
+      return { start: d.toISOString().slice(0, 10), end: todayStr, label: '30 Hari Terakhir' };
+    }
+    if (timeFilter === 'this_month') {
+      const s = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+      const e = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+      return { start: s, end: e, label: 'Bulan Ini' };
+    }
+    if (timeFilter === 'this_year') {
+      const s = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+      const e = new Date(now.getFullYear(), 11, 31).toISOString().slice(0, 10);
+      return { start: s, end: e, label: 'Tahun Ini' };
+    }
+    return { start: '2020-01-01', end: '2099-12-31', label: 'Semua Waktu' };
+  }, [timeFilter]);
+
+  // STRICT RULE: Pemasukan Kas Diterima is based on payments received (payment_date)
+  const periodPayments = useMemo(() => {
+    return payments.filter((p) => p.payment_date >= filterRange.start && p.payment_date <= filterRange.end);
+  }, [payments, filterRange]);
+
+  const periodInvoices = useMemo(() => {
+    return invoices.filter((i) => i.invoice_date >= filterRange.start && i.invoice_date <= filterRange.end);
+  }, [invoices, filterRange]);
+
+  const periodExpenses = useMemo(() => {
+    return expenses.filter((e) => e.expense_date >= filterRange.start && e.expense_date <= filterRange.end);
+  }, [expenses, filterRange]);
+
   // 1. Calculate Real KPIs
   const totalPatients = patients.length;
   const activePatients = patients.filter((p) => p.status === 'Aktif').length;
   const totalTherapySessions = therapySessions.length;
 
-  // STRICT RULE: Total Pemasukan is based on payments received (payment_date)
-  const totalRevenue = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
-  const totalInvoiced = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
-  const totalExpense = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-  const netIncome = totalRevenue - totalExpense;
+  const periodRevenue = periodPayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const periodInvoiced = periodInvoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+  const periodExpense = periodExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
+  const periodNetIncome = periodRevenue - periodExpense;
+
+  // All-time totals for reference
+  const allTimeRevenue = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const allTimeInvoiced = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
 
   // Unpaid Invoices & Remaining Balances
   const unpaidInvoicesWithBalance = useMemo(() => {
@@ -90,34 +136,94 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
 
   // 2. Filter data for charts according to time filter: STRICTLY using payments (payment_date)
   const chartData = useMemo(() => {
-    // Generate dates series
-    const days = timeFilter === '7d' ? 7 : timeFilter === '30d' ? 30 : timeFilter === 'this_month' ? 30 : 90;
     const result: Array<{ date: string; displayDate: string; revenue: number; expense: number; netIncome: number }> = [];
-
     const now = new Date();
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(now.getDate() - i);
-      const dateStr = d.toISOString().slice(0, 10);
-      const displayDate = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
 
-      // Daily real income received on this date
+    if (timeFilter === 'today') {
+      const todayStr = now.toISOString().slice(0, 10);
       const dayIncome = payments
-        .filter((p) => p.payment_date === dateStr)
+        .filter((p) => p.payment_date === todayStr)
         .reduce((sum, p) => sum + (p.amount || 0), 0);
-
-      // Daily expenses
       const dayExpenses = expenses
-        .filter((e) => e.expense_date === dateStr)
+        .filter((e) => e.expense_date === todayStr)
         .reduce((sum, e) => sum + (e.amount || 0), 0);
-
       result.push({
-        date: dateStr,
-        displayDate,
+        date: todayStr,
+        displayDate: 'Hari Ini',
         revenue: dayIncome,
         expense: dayExpenses,
         netIncome: dayIncome - dayExpenses,
       });
+    } else if (timeFilter === 'this_year') {
+      const currentYear = now.getFullYear();
+      for (let m = 0; m < 12; m++) {
+        const monthPrefix = `${currentYear}-${String(m + 1).padStart(2, '0')}`;
+        const monthDate = new Date(currentYear, m, 1);
+        const displayDate = monthDate.toLocaleDateString('id-ID', { month: 'short' });
+        const mIncome = payments
+          .filter((p) => p.payment_date.startsWith(monthPrefix))
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
+        const mExpense = expenses
+          .filter((e) => e.expense_date.startsWith(monthPrefix))
+          .reduce((sum, e) => sum + (e.amount || 0), 0);
+        result.push({
+          date: monthPrefix,
+          displayDate,
+          revenue: mIncome,
+          expense: mExpense,
+          netIncome: mIncome - mExpense,
+        });
+      }
+    } else if (timeFilter === 'all') {
+      const allDates = new Set<string>();
+      payments.forEach((p) => allDates.add(p.payment_date.slice(0, 7)));
+      expenses.forEach((e) => allDates.add(e.expense_date.slice(0, 7)));
+      const sortedMonths = Array.from(allDates).sort();
+      if (sortedMonths.length === 0) {
+        sortedMonths.push(now.toISOString().slice(0, 7));
+      }
+      sortedMonths.forEach((monthStr) => {
+        const [y, m] = monthStr.split('-').map(Number);
+        const d = new Date(y, m - 1, 1);
+        const displayDate = d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+        const mIncome = payments
+          .filter((p) => p.payment_date.startsWith(monthStr))
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
+        const mExpense = expenses
+          .filter((e) => e.expense_date.startsWith(monthStr))
+          .reduce((sum, e) => sum + (e.amount || 0), 0);
+        result.push({
+          date: monthStr,
+          displayDate,
+          revenue: mIncome,
+          expense: mExpense,
+          netIncome: mIncome - mExpense,
+        });
+      });
+    } else {
+      const days = timeFilter === '7d' ? 7 : timeFilter === '30d' ? 30 : now.getDate();
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(now.getDate() - i);
+        const dateStr = d.toISOString().slice(0, 10);
+        const displayDate = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+
+        const dayIncome = payments
+          .filter((p) => p.payment_date === dateStr)
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+        const dayExpenses = expenses
+          .filter((e) => e.expense_date === dateStr)
+          .reduce((sum, e) => sum + (e.amount || 0), 0);
+
+        result.push({
+          date: dateStr,
+          displayDate,
+          revenue: dayIncome,
+          expense: dayExpenses,
+          netIncome: dayIncome - dayExpenses,
+        });
+      }
     }
     return result;
   }, [timeFilter, payments, expenses]);
@@ -301,20 +407,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           </div>
         </div>
 
-        {/* Total Pendapatan */}
+        {/* Total Pendapatan Kas Masuk */}
         <div
           onClick={() => onNavigate('financial-report')}
-          className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all cursor-pointer group"
+          className="p-4 bg-white rounded-2xl border border-teal-200/90 shadow-xs hover:shadow-md transition-all cursor-pointer group ring-1 ring-teal-500/10"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pendapatan</span>
+            <span className="text-xs font-semibold text-teal-700 uppercase tracking-wider">Pemasukan Kas</span>
             <div className="w-7 h-7 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center group-hover:scale-110 transition-transform">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-base sm:text-lg font-black text-slate-900 truncate">{formatRupiah(totalRevenue)}</p>
-            <p className="text-[11px] text-teal-600 font-medium mt-0.5">Uang Kas Masuk</p>
+            <p className="text-base sm:text-lg font-black text-slate-900 truncate">{formatRupiah(periodRevenue)}</p>
+            <p className="text-[11px] text-teal-600 font-medium mt-0.5">Uang Diterima ({filterRange.label})</p>
+          </div>
+        </div>
+
+        {/* Nilai Invoice (Tagihan) */}
+        <div
+          onClick={() => onNavigate('invoices')}
+          className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Nilai Invoice</span>
+            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+              <FileText className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-base sm:text-lg font-black text-slate-900 truncate">{formatRupiah(periodInvoiced)}</p>
+            <p className="text-[11px] text-slate-500 font-medium mt-0.5">Total Tagihan ({filterRange.label})</p>
           </div>
         </div>
 
@@ -330,8 +453,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-base sm:text-lg font-black text-slate-900 truncate">{formatRupiah(totalExpense)}</p>
-            <p className="text-[11px] text-rose-600 font-medium mt-0.5">Biaya & Operasional</p>
+            <p className="text-base sm:text-lg font-black text-slate-900 truncate">{formatRupiah(periodExpense)}</p>
+            <p className="text-[11px] text-rose-600 font-medium mt-0.5">Biaya ({filterRange.label})</p>
           </div>
         </div>
 
@@ -347,8 +470,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-base sm:text-lg font-black text-teal-300 truncate">{formatRupiah(netIncome)}</p>
-            <p className="text-[10px] text-slate-300 mt-0.5">Revenue - Expense</p>
+            <p className="text-base sm:text-lg font-black text-teal-300 truncate">{formatRupiah(periodNetIncome)}</p>
+            <p className="text-[10px] text-slate-300 mt-0.5">Kas Masuk - Pengeluaran</p>
           </div>
         </div>
       </div>
@@ -359,15 +482,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
         <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200/80 p-5 md:p-6 shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Arus Finansial (Revenue, Expense & Net Income)</h2>
-              <p className="text-xs text-slate-500">Pantau performa pendapatan klinik dan pengeluaran harian</p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900">Arus Finansial (Pemasukan Kas & Biaya)</h2>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800">
+                  {filterRange.label}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">Pemasukan dicatat riil berdasarkan tanggal uang masuk (payment_date)</p>
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+            <div className="flex items-center flex-wrap gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+              <button
+                onClick={() => setTimeFilter('today')}
+                className={`px-2 py-1 rounded-lg transition-all ${
+                  timeFilter === 'today' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Hari Ini
+              </button>
               <button
                 onClick={() => setTimeFilter('7d')}
-                className={`px-2.5 py-1 rounded-lg transition-all ${
+                className={`px-2 py-1 rounded-lg transition-all ${
                   timeFilter === '7d' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -375,19 +511,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
               </button>
               <button
                 onClick={() => setTimeFilter('30d')}
-                className={`px-2.5 py-1 rounded-lg transition-all ${
+                className={`px-2 py-1 rounded-lg transition-all ${
                   timeFilter === '30d' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
                 30 Hari
               </button>
               <button
-                onClick={() => setTimeFilter('3m')}
-                className={`px-2.5 py-1 rounded-lg transition-all ${
-                  timeFilter === '3m' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                onClick={() => setTimeFilter('this_month')}
+                className={`px-2 py-1 rounded-lg transition-all ${
+                  timeFilter === 'this_month' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                3 Bulan
+                Bulan Ini
+              </button>
+              <button
+                onClick={() => setTimeFilter('this_year')}
+                className={`px-2 py-1 rounded-lg transition-all ${
+                  timeFilter === 'this_year' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Tahun Ini
+              </button>
+              <button
+                onClick={() => setTimeFilter('all')}
+                className={`px-2 py-1 rounded-lg transition-all ${
+                  timeFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Semua
               </button>
             </div>
           </div>

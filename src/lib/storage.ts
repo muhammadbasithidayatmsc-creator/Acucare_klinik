@@ -124,28 +124,69 @@ export class ClinicStore {
       setItem(STORAGE_KEYS.INCOME, INITIAL_INCOME);
     }
 
-    // Ensure test case inv-5 and pay-5 are loaded if existing localStorage was already populated
+    // Ensure initial sample invoices, sales, payments, and income are strictly synchronized
     const existingInvoices = this.getInvoices();
-    if (!existingInvoices.some((i) => i.id === 'inv-5' || i.invoice_number === 'INV-202609-0005')) {
-      const inv5 = INITIAL_INVOICES.find((i) => i.id === 'inv-5');
-      if (inv5) {
-        this.saveInvoices([...existingInvoices, inv5]);
+    let invoicesUpdated = false;
+    INITIAL_INVOICES.forEach((initInv) => {
+      const idx = existingInvoices.findIndex((inv) => inv.id === initInv.id || inv.invoice_number === initInv.invoice_number);
+      if (idx === -1) {
+        existingInvoices.push(initInv);
+        invoicesUpdated = true;
+      } else if (existingInvoices[idx].total !== initInv.total || existingInvoices[idx].invoice_date !== initInv.invoice_date) {
+        existingInvoices[idx] = { ...existingInvoices[idx], ...initInv };
+        invoicesUpdated = true;
       }
-      const existingSales = this.getSales();
-      const sale5 = INITIAL_SALES.find((s) => s.id === 'sale-5');
-      if (sale5 && !existingSales.some((s) => s.id === 'sale-5')) {
-        this.saveSales([...existingSales, sale5]);
+    });
+    if (invoicesUpdated) {
+      this.saveInvoices(existingInvoices);
+    }
+
+    const existingSales = this.getSales();
+    let salesUpdated = false;
+    INITIAL_SALES.forEach((initSale) => {
+      const idx = existingSales.findIndex((s) => s.id === initSale.id);
+      if (idx === -1) {
+        existingSales.push(initSale);
+        salesUpdated = true;
+      } else if (existingSales[idx].total !== initSale.total || existingSales[idx].sale_date !== initSale.sale_date) {
+        existingSales[idx] = { ...existingSales[idx], ...initSale };
+        salesUpdated = true;
       }
-      const existingPayments = this.getPayments();
-      const pay5 = INITIAL_PAYMENTS.find((p) => p.id === 'pay-5');
-      if (pay5 && !existingPayments.some((p) => p.id === 'pay-5')) {
-        this.savePayments([...existingPayments, pay5]);
+    });
+    if (salesUpdated) {
+      this.saveSales(existingSales);
+    }
+
+    const existingPayments = this.getPayments();
+    let paymentsUpdated = false;
+    INITIAL_PAYMENTS.forEach((initPay) => {
+      const idx = existingPayments.findIndex((p) => p.id === initPay.id || (p.invoice_number === initPay.invoice_number && p.payment_date === initPay.payment_date));
+      if (idx === -1) {
+        existingPayments.push(initPay);
+        paymentsUpdated = true;
+      } else if (existingPayments[idx].amount !== initPay.amount || existingPayments[idx].payment_date !== initPay.payment_date) {
+        existingPayments[idx] = { ...existingPayments[idx], ...initPay };
+        paymentsUpdated = true;
       }
-      const existingIncome = this.getIncome();
-      const inc5 = INITIAL_INCOME.find((inc) => inc.id === 'inc-5');
-      if (inc5 && !existingIncome.some((inc) => inc.id === 'inc-5')) {
-        this.saveIncome([...existingIncome, inc5]);
+    });
+    if (paymentsUpdated) {
+      this.savePayments(existingPayments);
+    }
+
+    const existingIncome = this.getIncome();
+    let incomeUpdated = false;
+    INITIAL_INCOME.forEach((initInc) => {
+      const idx = existingIncome.findIndex((inc) => inc.id === initInc.id);
+      if (idx === -1) {
+        existingIncome.push(initInc);
+        incomeUpdated = true;
+      } else if (existingIncome[idx].amount !== initInc.amount || existingIncome[idx].income_date !== initInc.income_date) {
+        existingIncome[idx] = { ...existingIncome[idx], ...initInc };
+        incomeUpdated = true;
       }
+    });
+    if (incomeUpdated) {
+      this.saveIncome(existingIncome);
     }
   }
 

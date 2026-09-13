@@ -215,11 +215,11 @@ const ClinicAppContent: React.FC = () => {
 
             {activeTab === 'finance' && <FinanceView />}
 
-            {activeTab === 'reports_finance' && <FinancialReportView />}
+            {(activeTab === 'financial-report' || activeTab === 'reports_finance') && <FinancialReportView />}
 
-            {activeTab === 'reports_clinical' && <ClinicalReportsView />}
+            {(activeTab === 'reports' || activeTab === 'reports_clinical') && <ClinicalReportsView />}
 
-            {activeTab === 'import_export' && <ImportExportView />}
+            {(activeTab === 'import-export' || activeTab === 'import_export') && <ImportExportView />}
 
             {activeTab === 'settings' && <SettingsView />}
           </div>
