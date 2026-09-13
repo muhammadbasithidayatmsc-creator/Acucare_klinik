@@ -1,0 +1,6 @@
+{
+  "name": "ACUCARE - Clinic Management",
+  "description": "Premium Acupuncture Clinic Management System for Ahli Saraf Kejepit & Stroke (Yogi Pangestu)",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
