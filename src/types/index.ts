@@ -197,10 +197,16 @@ export interface ClinicSettings {
   address: string;
   practitioner_name: string;
   whatsapp: string;
+  phone?: string;
   bank_name: string;
   bank_account: string;
+  bank_account_number?: string;
   bank_holder: string;
+  bank_account_name?: string;
   invoice_footer: string;
+  invoice_footer_note?: string;
+  whatsapp_template_booking?: string;
+  whatsapp_template_reminder?: string;
   logo_url?: string;
   last_backup_date?: string;
   supabase_url?: string;

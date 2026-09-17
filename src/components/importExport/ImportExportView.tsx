@@ -18,7 +18,19 @@ import { exportToCSV, exportToExcel, exportPatientsPDF } from '../../lib/exportU
 import { Patient } from '../../types';
 
 export const ImportExportView: React.FC = () => {
-  const { patients, addPatient, therapySessions, sales, expenses, invoices, herbalProducts, addToast } = useClinic();
+  const {
+    patients,
+    addPatient,
+    therapySessions,
+    sales,
+    expenses,
+    invoices,
+    herbalProducts,
+    exportBackupPDF,
+    exportBackupExcel,
+    exportBackupJSON,
+    addToast,
+  } = useClinic();
 
   const [activeSubTab, setActiveSubTab] = useState<'import' | 'export'>('import');
 
@@ -339,62 +351,122 @@ export const ImportExportView: React.FC = () => {
 
       {/* EXPORT TAB */}
       {activeSubTab === 'export' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mb-3">
-                <FileSpreadsheet className="w-5 h-5" />
+        <div className="space-y-6">
+          {/* Primary & Complete Database Backups */}
+          <div className="bg-slate-900 text-white rounded-3xl p-6 border border-slate-800 shadow-xl space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">Full Backup ACUCARE (Arsip Lengkap)</h3>
+                  <p className="text-xs text-slate-400">
+                    Cadangkan seluruh database: data pasien, rekam medis, sesi terapi, inventori, faktur, kwitansi & keuangan.
+                  </p>
+                </div>
               </div>
-              <h3 className="font-bold text-base text-slate-900">Export Data Pasien</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Seluruh {patients.length} data pasien lengkap dengan nomor WA, status, dan riwayat keluhan.
-              </p>
+              <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-teal-500/20 text-teal-300 font-bold border border-teal-500/30">
+                Primary & Disaster Recovery
+              </span>
             </div>
-            <button
-              onClick={handleExportAllPatients}
-              className="mt-6 w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download Excel (.xlsx)</span>
-            </button>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+              {/* PRIMARY BACKUP PDF */}
+              <button
+                onClick={exportBackupPDF}
+                className="p-4 bg-teal-600/90 hover:bg-teal-500 text-slate-950 rounded-2xl flex flex-col items-center text-center gap-1.5 transition-all font-bold hover:scale-[1.02]"
+              >
+                <FileText className="w-6 h-6 text-slate-950" />
+                <span className="text-xs font-black">Download Full Backup PDF</span>
+                <span className="text-[10px] text-teal-950 font-medium">Backup utama multi-halaman seluruh data</span>
+              </button>
+
+              {/* TECHNICAL BACKUP JSON */}
+              <button
+                onClick={exportBackupJSON}
+                className="p-4 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-teal-500 rounded-2xl flex flex-col items-center text-center gap-1.5 transition-all text-white hover:scale-[1.02]"
+              >
+                <Download className="w-6 h-6 text-teal-400" />
+                <span className="text-xs font-bold">Download Backup JSON</span>
+                <span className="text-[10px] text-slate-400">Format teknis untuk restore & pindah HP</span>
+              </button>
+
+              {/* EXCEL 12 SHEET */}
+              <button
+                onClick={exportBackupExcel}
+                className="p-4 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-emerald-500 rounded-2xl flex flex-col items-center text-center gap-1.5 transition-all text-white hover:scale-[1.02]"
+              >
+                <FileSpreadsheet className="w-6 h-6 text-emerald-400" />
+                <span className="text-xs font-bold">Download Excel (.xlsx)</span>
+                <span className="text-[10px] text-slate-400">12 Sheet spreadsheet lengkap seluruh tabel</span>
+              </button>
+            </div>
           </div>
 
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center mb-3">
-                <FileSpreadsheet className="w-5 h-5" />
+          {/* Module-by-module Exports */}
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+              Export Berdasarkan Modul Satuan
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center mb-3">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-base text-slate-900">Export Data Pasien</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Seluruh {patients.length} data pasien lengkap dengan nomor WA, status, dan riwayat keluhan.
+                  </p>
+                </div>
+                <button
+                  onClick={handleExportAllPatients}
+                  className="mt-6 w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Excel (.xlsx)</span>
+                </button>
               </div>
-              <h3 className="font-bold text-base text-slate-900">Export Rekam Sesi Terapi</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Seluruh {therapySessions.length} sesi tindakan akupunktur, titik meridian, dan respon klinis.
-              </p>
-            </div>
-            <button
-              onClick={handleExportAllTherapy}
-              className="mt-6 w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download Excel (.xlsx)</span>
-            </button>
-          </div>
 
-          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs flex flex-col justify-between">
-            <div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
-                <FileSpreadsheet className="w-5 h-5" />
+              <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center mb-3">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-base text-slate-900">Export Rekam Sesi Terapi</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Seluruh {therapySessions.length} sesi tindakan akupunktur, titik meridian, dan respon klinis.
+                  </p>
+                </div>
+                <button
+                  onClick={handleExportAllTherapy}
+                  className="mt-6 w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Excel (.xlsx)</span>
+                </button>
               </div>
-              <h3 className="font-bold text-base text-slate-900">Export Inventori Herbal</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Katalog {herbalProducts.length} produk herbal, harga modal, harga jual, dan sisa stok fisik.
-              </p>
+
+              <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-base text-slate-900">Export Inventori Herbal</h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Katalog {herbalProducts.length} produk herbal, harga modal, harga jual, dan sisa stok fisik.
+                  </p>
+                </div>
+                <button
+                  onClick={handleExportAllHerbal}
+                  className="mt-6 w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download Excel (.xlsx)</span>
+                </button>
+              </div>
             </div>
-            <button
-              onClick={handleExportAllHerbal}
-              className="mt-6 w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download Excel (.xlsx)</span>
-            </button>
           </div>
         </div>
       )}

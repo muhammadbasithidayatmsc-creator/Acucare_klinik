@@ -17,6 +17,12 @@ import {
   DatabaseBackup,
 } from '../types';
 import { ClinicStore } from '../lib/storage';
+import {
+  exportFullBackupPDF,
+  exportFullDatabaseExcel,
+  downloadJsonFile,
+  getBackupTimestamp,
+} from '../lib/exportUtils';
 
 export interface ToastMessage {
   id: string;
@@ -130,8 +136,19 @@ interface ClinicContextType {
 
   // Database Backup & Reset
   backupDatabase: () => DatabaseBackup;
-  restoreDatabase: (backup: DatabaseBackup) => { success: boolean; message: string };
+  restoreDatabase: (backup: DatabaseBackup) => { success: boolean; message: string; counts?: any };
+  exportBackupPDF: () => void;
+  exportBackupJSON: () => void;
+  exportBackupExcel: () => void;
+  validateBackupJSON: (jsonText: string) => {
+    isValid: boolean;
+    message: string;
+    backup?: DatabaseBackup;
+    counts?: any;
+  };
+  importBackupJSON: (jsonText: string) => { success: boolean; message: string; counts?: any };
   resetToDemo: () => void;
+  resetToSampleData: () => void;
 
   // Global Search & UI Helpers
   toasts: ToastMessage[];
@@ -910,9 +927,69 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const backupDatabase = (): DatabaseBackup => {
     const backup = ClinicStore.exportFullDatabase();
     setSettings(ClinicStore.getSettings());
-    addToast('success', 'Backup Berhasil', 'Full database backup berhasil diunduh.');
+    addToast('success', 'Backup Berhasil', 'Snapshot database berhasil dibuat.');
     return backup;
   };
+
+  const exportBackupPDF = useCallback(() => {
+    try {
+      const backup = ClinicStore.exportFullDatabase();
+      exportFullBackupPDF(backup);
+      setSettings(ClinicStore.getSettings());
+      addToast('success', 'Backup PDF Berhasil Diunduh', 'Seluruh arsip data klinik ACUCARE telah diekspor ke PDF.');
+    } catch (err: any) {
+      console.error('exportBackupPDF failed:', err);
+      addToast('error', 'Gagal Download PDF', err.message || 'Terjadi kesalahan saat memproses PDF backup.');
+    }
+  }, [addToast]);
+
+  const exportBackupJSON = useCallback(() => {
+    try {
+      const backup = ClinicStore.exportFullDatabase();
+      const filename = `ACUCARE_Backup_${getBackupTimestamp()}.json`;
+      downloadJsonFile(backup, filename);
+      setSettings(ClinicStore.getSettings());
+      addToast('success', 'Backup berhasil diunduh.', 'File technical JSON backup tersimpan aman.');
+    } catch (err: any) {
+      console.error('exportBackupJSON failed:', err);
+      addToast('error', 'Gagal Download JSON', err.message || 'Terjadi kesalahan saat memproses JSON backup.');
+    }
+  }, [addToast]);
+
+  const exportBackupExcel = useCallback(() => {
+    try {
+      const backup = ClinicStore.exportFullDatabase();
+      exportFullDatabaseExcel(backup);
+      addToast('success', 'Export Excel Berhasil', '12 sheet database ACUCARE berhasil diekspor.');
+    } catch (err: any) {
+      console.error('exportBackupExcel failed:', err);
+      addToast('error', 'Gagal Export Excel', err.message || 'Terjadi kesalahan saat mengekspor file Excel.');
+    }
+  }, [addToast]);
+
+  const validateBackupJSON = useCallback((jsonText: string) => {
+    return ClinicStore.parseAndValidateBackup(jsonText);
+  }, []);
+
+  const importBackupJSON = useCallback(
+    (jsonText: string) => {
+      const valResult = ClinicStore.parseAndValidateBackup(jsonText);
+      if (!valResult.isValid || !valResult.backup) {
+        addToast('error', 'Validasi File Gagal', valResult.message);
+        return { success: false, message: valResult.message };
+      }
+
+      const restoreResult = ClinicStore.importFullDatabase(valResult.backup);
+      if (restoreResult.success) {
+        reloadFromStore();
+        addToast('success', 'Database Berhasil Dipulihkan', 'Seluruh data pasien, rekam medis, dan transaksi telah disinkronkan.');
+      } else {
+        addToast('error', 'Gagal Memulihkan Database', restoreResult.message);
+      }
+      return restoreResult;
+    },
+    [reloadFromStore, addToast]
+  );
 
   const restoreDatabase = (backup: DatabaseBackup) => {
     const result = ClinicStore.importFullDatabase(backup);
@@ -929,6 +1006,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     ClinicStore.resetToDemoData();
     reloadFromStore();
     addToast('info', 'Data Demo Direset', 'Database dikembalikan ke data peragaan awal.');
+  };
+
+  const resetToSampleData = () => {
+    resetToDemo();
   };
 
   return (
@@ -983,7 +1064,13 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         deleteIncome,
         backupDatabase,
         restoreDatabase,
+        exportBackupPDF,
+        exportBackupJSON,
+        exportBackupExcel,
+        validateBackupJSON,
+        importBackupJSON,
         resetToDemo,
+        resetToSampleData,
         toasts,
         addToast,
         removeToast,

@@ -340,7 +340,7 @@ export class ClinicStore {
   // --- Full Database Backup & Restore ---
   static exportFullDatabase(exportedBy: string = 'Yogi Pangestu'): DatabaseBackup {
     const backup: DatabaseBackup = {
-      version: '1.0.0',
+      version: '2.0.0',
       timestamp: new Date().toISOString(),
       exported_by: exportedBy,
       settings: this.getSettings(),
@@ -368,30 +368,140 @@ export class ClinicStore {
     return backup;
   }
 
-  static importFullDatabase(backup: DatabaseBackup): { success: boolean; message: string } {
+  static parseAndValidateBackup(jsonString: string): {
+    isValid: boolean;
+    message: string;
+    backup?: DatabaseBackup;
+    counts?: {
+      patients: number;
+      medical_records: number;
+      therapy_sessions: number;
+      services: number;
+      herbal_products: number;
+      stock: number;
+      sales: number;
+      invoices: number;
+      payments: number;
+      income: number;
+      expenses: number;
+    };
+  } {
     try {
-      if (!backup || !backup.patients) {
-        return { success: false, message: 'Invalid backup file format.' };
+      const parsed = JSON.parse(jsonString);
+      if (!parsed || typeof parsed !== 'object') {
+        return { isValid: false, message: 'Format file bukan JSON yang valid.' };
       }
-      if (backup.settings) this.saveSettings(backup.settings);
-      if (backup.users) this.saveUsers(backup.users);
-      if (backup.patients) this.savePatients(backup.patients);
-      if (backup.therapy_sessions) this.saveTherapySessions(backup.therapy_sessions);
-      if (backup.services) this.saveServices(backup.services);
-      if (backup.service_categories) this.saveServiceCategories(backup.service_categories);
-      if (backup.herbal_products) this.saveHerbalProducts(backup.herbal_products);
-      if (backup.product_categories) this.saveProductCategories(backup.product_categories);
-      if (backup.sales) this.saveSales(backup.sales);
-      if (backup.sale_items) this.saveSaleItems(backup.sale_items);
-      if (backup.payments) this.savePayments(backup.payments);
-      if (backup.invoices) this.saveInvoices(backup.invoices);
-      if (backup.expenses) this.saveExpenses(backup.expenses);
-      if (backup.expense_categories) this.saveExpenseCategories(backup.expense_categories);
-      if (backup.income) this.saveIncome(backup.income);
 
-      return { success: true, message: 'Database successfully restored from backup!' };
+      // Check essential structures
+      if (!Array.isArray(parsed.patients)) {
+        return { isValid: false, message: 'File backup tidak memuat tabel pasien (patients array).' };
+      }
+
+      const totalStock = Array.isArray(parsed.herbal_products)
+        ? parsed.herbal_products.reduce((acc: number, p: any) => acc + (Number(p.stock) || 0), 0)
+        : 0;
+
+      const medicalRecordsCount = parsed.patients.filter(
+        (p: any) => p.main_complaint || p.medical_history || p.allergy_notes
+      ).length;
+
+      const counts = {
+        patients: parsed.patients?.length || 0,
+        medical_records: medicalRecordsCount,
+        therapy_sessions: parsed.therapy_sessions?.length || 0,
+        services: parsed.services?.length || 0,
+        herbal_products: parsed.herbal_products?.length || 0,
+        stock: totalStock,
+        sales: parsed.sales?.length || 0,
+        invoices: parsed.invoices?.length || 0,
+        payments: parsed.payments?.length || 0,
+        income: parsed.income?.length || 0,
+        expenses: parsed.expenses?.length || 0,
+      };
+
+      return {
+        isValid: true,
+        message: 'Struktur file backup valid dan siap dipulihkan.',
+        backup: parsed as DatabaseBackup,
+        counts,
+      };
     } catch (err: any) {
-      return { success: false, message: err.message || 'Failed to restore database.' };
+      return { isValid: false, message: `Gagal membaca file JSON: ${err.message || 'File korup'}` };
+    }
+  }
+
+  static importFullDatabase(backup: DatabaseBackup): {
+    success: boolean;
+    message: string;
+    counts?: {
+      patients: number;
+      medical_records: number;
+      therapy_sessions: number;
+      services: number;
+      herbal_products: number;
+      stock: number;
+      sales: number;
+      invoices: number;
+      payments: number;
+      income: number;
+      expenses: number;
+    };
+  } {
+    try {
+      if (!backup || !Array.isArray(backup.patients)) {
+        return { success: false, message: 'Format file backup tidak valid. Tabel pasien tidak ditemukan.' };
+      }
+
+      // 1. Restore Clinic Settings & Users
+      if (backup.settings) this.saveSettings(backup.settings);
+      if (Array.isArray(backup.users) && backup.users.length > 0) this.saveUsers(backup.users);
+
+      // 2. Restore Master Data & Products
+      if (Array.isArray(backup.service_categories)) this.saveServiceCategories(backup.service_categories);
+      if (Array.isArray(backup.services)) this.saveServices(backup.services);
+      if (Array.isArray(backup.product_categories)) this.saveProductCategories(backup.product_categories);
+      if (Array.isArray(backup.herbal_products)) this.saveHerbalProducts(backup.herbal_products);
+
+      // 3. Restore Core Patient & Clinical Data
+      if (Array.isArray(backup.patients)) this.savePatients(backup.patients);
+      if (Array.isArray(backup.therapy_sessions)) this.saveTherapySessions(backup.therapy_sessions);
+
+      // 4. Restore Transactions & Financial Documents
+      if (Array.isArray(backup.sales)) this.saveSales(backup.sales);
+      if (Array.isArray(backup.sale_items)) this.saveSaleItems(backup.sale_items);
+      if (Array.isArray(backup.invoices)) this.saveInvoices(backup.invoices);
+      if (Array.isArray(backup.payments)) this.savePayments(backup.payments);
+
+      // 5. Restore Operational Income & Expenses
+      if (Array.isArray(backup.expense_categories)) this.saveExpenseCategories(backup.expense_categories);
+      if (Array.isArray(backup.expenses)) this.saveExpenses(backup.expenses);
+      if (Array.isArray(backup.income)) this.saveIncome(backup.income);
+
+      const totalStock = Array.isArray(backup.herbal_products)
+        ? backup.herbal_products.reduce((acc: number, p: any) => acc + (Number(p.stock) || 0), 0)
+        : 0;
+
+      const counts = {
+        patients: backup.patients?.length || 0,
+        medical_records: backup.patients.filter((p) => p.main_complaint || p.medical_history).length,
+        therapy_sessions: backup.therapy_sessions?.length || 0,
+        services: backup.services?.length || 0,
+        herbal_products: backup.herbal_products?.length || 0,
+        stock: totalStock,
+        sales: backup.sales?.length || 0,
+        invoices: backup.invoices?.length || 0,
+        payments: backup.payments?.length || 0,
+        income: backup.income?.length || 0,
+        expenses: backup.expenses?.length || 0,
+      };
+
+      return {
+        success: true,
+        message: 'Database berhasil dipulihkan dari backup. Seluruh relasi data tersimpan aman.',
+        counts,
+      };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Gagal memulihkan database dari backup.' };
     }
   }
 
